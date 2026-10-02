@@ -1,0 +1,220 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    // ───────── دوال مساعدة ─────────
+    function signedIn() { return request.auth != null; }
+    // مدير بأي دور. الأدوار: owner (كل شيء) / editor (المحتوى والطلبات) / moderator (مراجعة الطلبات فقط)
+    // المستند القديم بلا حقل role يُعامل كـ owner
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(db)/documents/admins/$(request.auth.uid));
+    }
+    function adminRole() {
+      return get(/databases/$(db)/documents/admins/$(request.auth.uid)).data.get('role', 'owner');
+    }
+    function canEdit() { return isAdmin() && adminRole() in ['owner', 'editor']; }
+    function isOwnerRole() { return isAdmin() && adminRole() == 'owner'; }
+    function isUser(uid) { return signedIn() && request.auth.uid == uid; }
+    // مالك المستند الحالي (يتحمل غياب الحقل في الأنشطة التي أنشأها المدير)
+    function ownsExisting() {
+      return signedIn() && resource.data.get('ownerUid', '') == request.auth.uid;
+    }
+    // الأقسام تُدار بالكامل من اللوحة (مجموعة sections)، ولا توجد مفاتيح ثابتة
+    function sectionOk(s) {
+      return s is string && s.size() > 0
+        && exists(/databases/$(db)/documents/sections/$(s));
+    }
+    // حساب جوجل حقيقي (ليس ضيفاً مجهولاً)
+    function realUser() {
+      return signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function optStr(d, k, max) {
+      return !(k in d) || (d[k] is string && d[k].size() <= max);
+    }
+    function validPhone(v) { return v is string && v.matches('^0[0-9]{9}$'); }
+    // تحقق حقول النشاط (للأنشطة والطلبات)
+    function placeFieldsOk(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 100
+        && sectionOk(d.section)
+        && validPhone(d.phone)
+        && (!('whatsapp' in d) || d.whatsapp == '' || validPhone(d.whatsapp))
+        && optStr(d, 'category', 60) // حقل قديم: لم يعد التطبيق يكتبه، ويبقى مقبولاً للمستندات القديمة
+        && optStr(d, 'services', 500)
+        && optStr(d, 'address', 200)
+        && optStr(d, 'hours', 100)
+        && optStr(d, 'image', 60000);
+    }
+    // كتابة نشاط ضمن عملية قبول طلب (يستطيعها المشرف أيضاً): يجب أن يُقبل الطلب المرتبط في نفس العملية
+    function approvingRequest() {
+      return isAdmin()
+        && request.resource.data.get('requestId', '') is string
+        && request.resource.data.get('requestId', '') != ''
+        && getAfter(/databases/$(db)/documents/requests/$(request.resource.data.requestId)).data.status == 'approved'
+        && getAfter(/databases/$(db)/documents/requests/$(request.resource.data.requestId)).data.reviewedBy == request.auth.uid
+        && getAfter(/databases/$(db)/documents/requests/$(request.resource.data.requestId)).data.reviewedAt == request.time;
+    }
+    // زيادة عدّاد الاتصال/الواتساب بمقدار 1 بالضبط
+    function statStepOk(prev, next) {
+      let dc = next.get('calls', 0) - prev.get('calls', 0);
+      let dw = next.get('whatsapp', 0) - prev.get('whatsapp', 0);
+      return dc >= 0 && dw >= 0 && dc + dw == 1;
+    }
+
+    // ───────── المدراء ─────────
+    // يستطيع المستخدم قراءة مستنده فقط ليعرف لوحة التحكم إن كان مديراً
+    // المالك فقط يستعرض المدراء ويضيفهم ويغيّر أدوارهم ويزيلهم (بلا دوال سحابية)
+    // لا يستطيع المالك إزالة نفسه ولا خفض دوره، فيبقى مالك واحد على الأقل دائماً
+    match /admins/{uid} {
+      allow get: if isUser(uid) || isOwnerRole();
+      allow list: if isOwnerRole();
+      allow create, update: if isOwnerRole()
+        && request.resource.data.keys().hasOnly(['role', 'email', 'addedBy', 'updatedAt'])
+        && request.resource.data.role in ['owner', 'editor', 'moderator']
+        && (uid != request.auth.uid || request.resource.data.role == 'owner');
+      allow delete: if isOwnerRole() && uid != request.auth.uid;
+    }
+
+    // ───────── الأنشطة المنشورة ─────────
+    // الكتابة للمدير فقط (أو المشرف ضمن قبول طلب). المستخدمون يرسلون طلبات في requests.
+    match /places/{id} {
+      allow read: if resource.data.status == 'approved' || isAdmin() || ownsExisting();
+      allow create, update: if (canEdit() || approvingRequest())
+        && request.resource.data.keys().hasOnly([
+          'name', 'section', 'category', 'services', 'address', 'hours', 'phone',
+          'whatsapp', 'status', 'ownerUid', 'requestId', 'featured', 'image', 'createdAt', 'updatedAt'])
+        && request.resource.data.status in ['approved', 'hidden']
+        && placeFieldsOk(request.resource.data);
+      // المالك يحذف نشاطه (يلزم لحذف الحساب)
+      allow delete: if canEdit() || ownsExisting();
+    }
+
+    // ───────── طلبات الإضافة/التعديل ─────────
+    // المستخدم ينشئ طلبه مباشرة (بعد تحقق القواعد)، والمدير يقبل/يرفض المعلّق فقط
+    match /requests/{id} {
+      allow read: if isAdmin() || ownsExisting();
+      // الضيف يتصفح فقط؛ إرسال الطلبات لحساب جوجل (البريد في الطلب يجب أن يطابق بريد الحساب)
+      allow create: if realUser()
+        && request.resource.data.keys().hasOnly(['name', 'section', 'category', 'services', 'address', 'hours',
+             'phone', 'whatsapp', 'kind', 'placeId', 'status', 'ownerUid', 'ownerEmail', 'ownerName', 'createdAt'])
+        && request.resource.data.keys().hasAll(['name', 'section', 'phone', 'kind', 'status', 'ownerUid', 'createdAt'])
+        && request.resource.data.status == 'pending'
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.kind in ['new', 'edit']
+        && request.resource.data.get('ownerEmail', '') == request.auth.token.get('email', '')
+        && optStr(request.resource.data, 'ownerName', 100)
+        && placeFieldsOk(request.resource.data)
+        && (request.resource.data.kind == 'new'
+            || (request.resource.data.placeId is string
+                && get(/databases/$(db)/documents/places/$(request.resource.data.placeId)).data.get('ownerUid', '') == request.auth.uid));
+      allow update: if isAdmin()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['approved', 'rejected']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['name', 'section', 'category', 'services', 'address', 'hours', 'phone', 'whatsapp',
+              'status', 'rejectReason', 'reviewedAt', 'reviewedBy'])
+        && placeFieldsOk(request.resource.data);
+      // يلغي المستخدم طلبه، ويحذف المدير أي طلب
+      allow delete: if isAdmin() || ownsExisting();
+    }
+
+    // ───────── الأقسام الرئيسية (الاسم/الرمز/اللون/الصورة/الترتيب/الإخفاء) ─────────
+    match /sections/{id} {
+      allow read: if true;
+      allow create, update: if canEdit()
+        && request.resource.data.keys().hasOnly(['title', 'emoji', 'color', 'examples', 'image', 'order', 'active'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 40
+        && optStr(request.resource.data, 'emoji', 16)
+        && request.resource.data.color is string && request.resource.data.color.matches('^#[0-9A-Fa-f]{6}$')
+        && optStr(request.resource.data, 'examples', 120)
+        && optStr(request.resource.data, 'image', 120000)
+        && (!('order' in request.resource.data) || request.resource.data.order is number)
+        && request.resource.data.active is bool;
+      allow delete: if canEdit();
+    }
+
+    // ───────── نصوص التطبيق القابلة للتعديل ─────────
+    match /settings/{id} {
+      allow read: if true;
+      allow create, update: if canEdit() && id == 'app'
+        && request.resource.data.keys().hasOnly(['tagline', 'searchHint', 'addTitle', 'addBody'])
+        && optStr(request.resource.data, 'tagline', 120)
+        && optStr(request.resource.data, 'searchHint', 80)
+        && optStr(request.resource.data, 'addTitle', 80)
+        && optStr(request.resource.data, 'addBody', 200);
+      allow delete: if canEdit() && id == 'app';
+    }
+
+    // ───────── الإعلانات ─────────
+    match /announcements/{id} {
+      allow read: if true;
+      allow create, update: if canEdit()
+        && request.resource.data.keys().hasOnly(
+          ['title', 'body', 'image', 'active', 'pinned', 'notify', 'createdAt', 'lastPushAt', 'expiresAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120
+        && optStr(request.resource.data, 'body', 1000)
+        && optStr(request.resource.data, 'image', 300000)
+        && request.resource.data.active is bool
+        && (!('expiresAt' in request.resource.data) || request.resource.data.expiresAt == null || request.resource.data.expiresAt is timestamp);
+      allow delete: if canEdit();
+    }
+
+    // ───────── رمز الإشعارات الخاص بالمستخدم ─────────
+    match /users/{uid} {
+      allow read: if isUser(uid);
+      allow create, update: if isUser(uid)
+        && request.resource.data.keys().hasOnly(['fcmToken', 'platform', 'updatedAt'])
+        && optStr(request.resource.data, 'fcmToken', 400);
+      allow delete: if isUser(uid);
+    }
+
+    // ───────── صندوق الإشعارات داخل التطبيق (يكتبه المدير عند مراجعة الطلب) ─────────
+    match /inbox/{uid}/items/{itemId} {
+      allow read, delete: if isUser(uid);
+      allow update: if isUser(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['title', 'body', 'type', 'requestId', 'read', 'createdAt'])
+        && request.resource.data.title is string && request.resource.data.title.size() <= 200
+        && request.resource.data.body is string && request.resource.data.body.size() <= 500
+        && request.resource.data.read == false
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // ───────── إحصائيات الاتصال ─────────
+    // يزيدها التطبيق بمقدار 1 فقط لكل ضغطة؛ القراءة للمدراء
+    match /stats/{id} {
+      allow read: if isAdmin();
+      allow create: if exists(/databases/$(db)/documents/places/$(id))
+        && request.resource.data.keys().hasOnly(['calls', 'whatsapp', 'updatedAt'])
+        && request.resource.data.get('calls', 0) + request.resource.data.get('whatsapp', 0) == 1;
+      allow update: if request.resource.data.keys().hasOnly(['calls', 'whatsapp', 'updatedAt'])
+        && statStepOk(resource.data, request.resource.data);
+      allow delete: if false;
+    }
+    match /statsDaily/{id} {
+      allow read: if isAdmin();
+      allow create: if id.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['calls', 'whatsapp'])
+        && request.resource.data.get('calls', 0) + request.resource.data.get('whatsapp', 0) == 1;
+      allow update: if request.resource.data.keys().hasOnly(['calls', 'whatsapp'])
+        && statStepOk(resource.data, request.resource.data);
+      allow delete: if false;
+    }
+
+    // ───────── سجل العمليات (يكتبه المدير من اللوحة) ─────────
+    match /auditLog/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.keys().hasOnly(['action', 'actorUid', 'createdAt', 'targetId', 'name', 'reason'])
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /{document=**} { allow read, write: if false; }
+  }
+}
