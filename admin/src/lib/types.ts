@@ -52,12 +52,10 @@ export type Section = {
 };
 
 /** نصوص الواجهة القابلة للتعديل (settings/app) */
-export type AppSettings = { tagline: string; searchHint: string; addTitle: string; addBody: string };
+export type AppSettings = { tagline: string; searchHint: string };
 export const DEFAULT_SETTINGS: AppSettings = {
   tagline: "كل ما تحتاجه في قريتك، جنبك.",
   searchHint: "ابحث عن محل أو مهنة أو خدمة",
-  addTitle: "عندك نشاط أو خدمة؟",
-  addBody: "أضفه مجاناً ليصل إليه أهل قريتك. يُراجع طلبك من الإدارة قبل ظهوره.",
 };
 
 export type Announcement = {
@@ -66,6 +64,7 @@ export type Announcement = {
   body?: string;
   active: boolean;
   image?: string; // صورة الإعلان (data URL)
+  link?: string; // رابط اختياري (https)
   pinned?: boolean;
   notify?: boolean;
   createdAt?: Timestamp;

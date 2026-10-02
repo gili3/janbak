@@ -7,8 +7,6 @@ import { AppSettings, DEFAULT_SETTINGS } from "../lib/types";
 const FIELDS: [keyof AppSettings, string, number][] = [
   ["tagline", "العبارة الرئيسية في أعلى الشاشة الرئيسية", 120],
   ["searchHint", "نص مربع البحث في الشاشة الرئيسية", 80],
-  ["addTitle", "عنوان بطاقة «أضف نشاطك»", 80],
-  ["addBody", "نص بطاقة «أضف نشاطك»", 200],
 ];
 
 export default function Settings() {

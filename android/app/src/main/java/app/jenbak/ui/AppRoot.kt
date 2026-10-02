@@ -18,7 +18,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -47,7 +46,6 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val TABS = listOf(
     Tab("home", "الرئيسية", Icons.Filled.Home),
-    Tab("search", "بحث", Icons.Filled.Search),
     Tab("favs", "المفضلة", Icons.Filled.Favorite),
     Tab("account", "حسابي", Icons.Filled.Person)
 )
@@ -98,9 +96,11 @@ fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
     // فتح الشاشة المناسبة عند النقر على إشعار
     val link = deepLink.value
     LaunchedEffect(link) {
-        when (link) {
-            "announcement" -> nav.navigate("news")
-            "request" -> nav.navigate(if (vm.user.value?.isGuest == false) "inbox" else "home")
+        when {
+            link == null -> Unit
+            link.startsWith("announcement:") -> nav.navigate("news/${link.removePrefix("announcement:")}")
+            link == "announcement" -> nav.navigate("news")
+            link == "request" -> nav.navigate(if (vm.user.value?.isGuest == false) "inbox" else "home")
         }
         if (link != null) deepLink.value = null
     }
@@ -123,7 +123,6 @@ fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
     NavHost(nav, startDestination = start) {
         composable("welcome") { WelcomeScreen(vm) }
         composable("home") { HomeScreen(nav, vm, unread) }
-        composable("search") { SearchScreen(nav, vm, unread) }
         composable("favs") { FavoritesScreen(nav, vm, unread) }
         composable("account") { AccountScreen(nav, vm, unread) }
         composable("section/{key}", listOf(navArgument("key") { type = NavType.StringType })) { e ->
@@ -133,6 +132,9 @@ fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
             DetailScreen(nav, vm, e.arguments?.getString("id") ?: "")
         }
         composable("news") { NewsScreen(nav, vm) }
+        composable("news/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
+            AnnouncementScreen(nav, vm, e.arguments?.getString("id") ?: "")
+        }
         composable("login") { LoginScreen(nav, vm) }
         composable("mine") { MyRequestsScreen(nav, vm) }
         composable("myplaces") { MyPlacesScreen(nav, vm) }

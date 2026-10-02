@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) deepLink.value = intent?.getStringExtra("type")
+        if (savedInstanceState == null) deepLink.value = linkOf(intent)
 
         // إذن الإشعارات فقط (أندرويد 13+) — لا يوجد أي إذن موقع
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -61,6 +61,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        deepLink.value = intent.getStringExtra("type")
+        deepLink.value = linkOf(intent)
+    }
+
+    /** "announcement:<id>" للإعلانات، وإلا نوع الإشعار كما هو */
+    private fun linkOf(i: Intent?): String? {
+        val type = i?.getStringExtra("type") ?: return null
+        val id = i.getStringExtra("id").orEmpty()
+        return if (type == "announcement" && id.isNotBlank()) "announcement:$id" else type
     }
 }

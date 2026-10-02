@@ -41,9 +41,7 @@ fun parseHexColor(hex: String, fallback: Color = Color.Gray): Color {
 /** نصوص الشاشة الرئيسية القابلة للتعديل من اللوحة (settings/app) */
 data class AppSettings(
     val tagline: String = "كل ما تحتاجه في قريتك، جنبك.",
-    val searchHint: String = "ابحث عن محل أو مهنة أو خدمة",
-    val addTitle: String = "عندك نشاط أو خدمة؟",
-    val addBody: String = "أضفه مجاناً ليصل إليه أهل قريتك. يُراجع طلبك من الإدارة قبل ظهوره."
+    val searchHint: String = "ابحث عن محل أو مهنة أو خدمة"
 )
 
 /** المستخدم الحالي: ضيف (مجهول) أو حساب جوجل */
@@ -110,7 +108,9 @@ data class Announcement(
     val createdAt: Long,
     val expiresAt: Long = 0L,
     /** صورة الإعلان (data URL) من اللوحة، اختيارية */
-    val image: String = ""
+    val image: String = "",
+    /** رابط اختياري (https) يفتحه زر في بطاقة الإعلان */
+    val link: String = ""
 )
 
 data class MyRequest(

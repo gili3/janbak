@@ -80,6 +80,8 @@ function AnnForm({ ann, onClose }: { ann: Announcement | null; onClose: () => vo
   const [active, setActive] = useState(ann?.active ?? true);
   const [pinned, setPinned] = useState(ann?.pinned ?? false);
   const [image, setImage] = useState(ann?.image ?? "");
+  const [link, setLink] = useState(ann?.link ?? "");
+  const linkOk = !link.trim() || /^https?:\/\/.+/i.test(link.trim());
   const [expires, setExpires] = useState(toLocalInput(ann?.expiresAt));
   const [busy, setBusy] = useState(false);
 
@@ -87,8 +89,8 @@ function AnnForm({ ann, onClose }: { ann: Announcement | null; onClose: () => vo
     setBusy(true);
     try {
       const expiresAt = expires ? Timestamp.fromDate(new Date(expires)) : null;
-      if (ann) await updateDoc(doc(db, "announcements", ann.id), { title: title.trim(), body: body.trim(), image, active, pinned, expiresAt });
-      else await addDoc(collection(db, "announcements"), { title: title.trim(), body: body.trim(), image, active, pinned, expiresAt, createdAt: serverTimestamp() });
+      if (ann) await updateDoc(doc(db, "announcements", ann.id), { title: title.trim(), body: body.trim(), image, link: link.trim(), active, pinned, expiresAt });
+      else await addDoc(collection(db, "announcements"), { title: title.trim(), body: body.trim(), image, link: link.trim(), active, pinned, expiresAt, createdAt: serverTimestamp() });
       toast(ann ? "تم الحفظ" : "تم النشر");
       onClose();
     } catch (e) { toast(errMsg(e), "err"); setBusy(false); }
@@ -98,14 +100,17 @@ function AnnForm({ ann, onClose }: { ann: Announcement | null; onClose: () => vo
     <Modal title={ann ? "تعديل إعلان" : "إعلان جديد"} onClose={onClose}>
       <fieldset className="form one" disabled={busy}>
         <ImagePicker wide size={800} maxChars={250000} label="صورة الإعلان" value={image} onChange={setImage} />
+        <small className="muted">الأفضل صورة أفقية بنسبة 16:9 (مثل 1280×720) حتى تظهر كاملة في التطبيق.</small>
         <label>العنوان *<input autoFocus value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} /></label>
         <label>النص<textarea rows={4} value={body} maxLength={1000} onChange={(e) => setBody(e.target.value)} /></label>
+        <label>رابط (اختياري، يظهر زر «فتح الرابط» في الإعلان)<input dir="ltr" placeholder="https://" value={link} maxLength={300} onChange={(e) => setLink(e.target.value)} /></label>
+        {!linkOk && <small className="notice bad">الرابط يجب أن يبدأ بـ https://</small>}
         <label>تاريخ الانتهاء (اختياري، يختفي الإعلان من التطبيق بعده)<input type="datetime-local" dir="ltr" value={expires} onChange={(e) => setExpires(e.target.value)} /></label>
         <label className="check-row"><input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> فعّال (يظهر في التطبيق)</label>
         <label className="check-row"><input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} /> تثبيت في أعلى القائمة</label>
       </fieldset>
       <div className="actions">
-        <button className="btn" disabled={busy || !title.trim()} onClick={save}>{busy ? "جارٍ الحفظ…" : ann ? "حفظ" : "نشر"}</button>
+        <button className="btn" disabled={busy || !title.trim() || !linkOk} onClick={save}>{busy ? "جارٍ الحفظ…" : ann ? "حفظ" : "نشر"}</button>
         <button className="btn ghost" onClick={onClose}>إلغاء</button>
       </div>
     </Modal>

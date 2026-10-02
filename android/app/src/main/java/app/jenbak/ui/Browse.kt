@@ -1,6 +1,7 @@
 package app.jenbak.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,8 +51,11 @@ fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val cfg by vm.settings.collectAsStateWithLifecycle()
     val feed by vm.feed.collectAsStateWithLifecycle()
     val favs by Prefs.favs.collectAsStateWithLifecycle()
-    val recent = remember(places) { places.sortedByDescending { it.createdAt }.take(5) }
-    val counts = remember(places) { places.groupingBy { it.section }.eachCount() }
+    var q by rememberSaveable { mutableStateOf("") }
+    var secTitle by rememberSaveable { mutableStateOf<String?>(null) }
+    val searching = q.isNotBlank()
+    val secKey = SECTIONS.firstOrNull { it.title == secTitle }?.key
+    val results = remember(places, q, secKey) { if (q.isBlank()) emptyList() else searchPlaces(places, q, secKey) }
 
     Scaffold(
         topBar = {
@@ -64,72 +68,78 @@ fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
         },
         bottomBar = { MainBar(nav, "home", unread) }
     ) { pad ->
-        LoadGate(feed, vm::loadFeed) {
-            LazyColumn(Modifier.padding(pad), contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item {
-                    Text(
-                        cfg.tagline,
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
-                }
-                item {
-                    Surface(
-                        onClick = { nav.navigate("search") },
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    ) {
-                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Filled.Search, null, tint = MaterialTheme.colorScheme.outline)
-                            Spacer(Modifier.width(10.dp))
-                            Text(cfg.searchHint, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(pad)) {
+            // شريط البحث: هو البحث الوحيد في التطبيق، ويعرض النتائج هنا مباشرة
+            OutlinedTextField(
+                value = q, onValueChange = { q = it },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                placeholder = { Text(cfg.searchHint) },
+                leadingIcon = { Icon(Icons.Filled.Search, null) },
+                trailingIcon = { if (q.isNotEmpty()) IconButton({ q = ""; secTitle = null }) { Icon(Icons.Filled.Close, "مسح") } },
+                singleLine = true,
+                shape = MaterialTheme.shapes.large
+            )
+            Spacer(Modifier.height(8.dp))
+            if (searching) {
+                ChipRow(SECTIONS.map { it.title }, secTitle) { secTitle = it }
+                Spacer(Modifier.height(8.dp))
+            }
+            LoadGate(feed, vm::loadFeed) {
+                if (searching) {
+                    if (results.isEmpty()) {
+                        EmptyState("🤷", "لا توجد نتائج", "جرّب كلمة أخرى")
+                    } else {
+                        LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            item { Text("${results.size} نتيجة", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            placeItems(results, favs, nav)
                         }
                     }
-                }
-                if (news.isNotEmpty()) {
-                    item {
-                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(news.take(6), key = { it.id }) { n ->
-                                AnnouncementCard(n, Modifier.width(290.dp), compact = true) { nav.navigate("news") }
-                            }
+                } else {
+                    LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        item {
+                            Text(
+                                cfg.tagline,
+                                style = MaterialTheme.typography.headlineSmall,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
                         }
-                    }
-                }
-                if (SECTIONS.isEmpty()) {
-                    item {
-                        Box(Modifier.fillMaxWidth().height(220.dp)) {
-                            EmptyState("🗂️", "لا توجد أقسام بعد", "ستظهر الأقسام هنا فور إضافتها من الإدارة")
-                        }
-                    }
-                }
-                item {
-                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SECTIONS.chunked(2).forEach { row ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                row.forEach { s ->
-                                    SectionTile(s, counts[s.key] ?: 0, Modifier.weight(1f)) { nav.navigate("section/${s.key}") }
+                        if (news.isNotEmpty()) {
+                            item {
+                                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("الإعلانات", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                    if (news.size > 1) TextButton({ nav.navigate("news") }) { Text("عرض الكل") }
                                 }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                            item {
+                                if (news.size == 1) {
+                                    AnnouncementCard(news[0], Modifier.padding(horizontal = 16.dp).fillMaxWidth(), compact = true) { nav.navigate("news/${news[0].id}") }
+                                } else {
+                                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        items(news.take(6), key = { it.id }) { n ->
+                                            AnnouncementCard(n, Modifier.width(300.dp), compact = true) { nav.navigate("news/${n.id}") }
+                                        }
+                                    }
+                                }
                             }
                         }
-                    }
-                }
-                if (recent.isNotEmpty()) {
-                    item { SectionTitle("أُضيف مؤخراً") }
-                    placeItems(recent, favs, nav)
-                }
-                item {
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(cfg.addTitle, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text(cfg.addBody, color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
-                            Button({ startAdd(nav, vm) }) { Text("أضف نشاطك") }
+                        if (SECTIONS.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().height(220.dp)) {
+                                    EmptyState("🗂️", "لا توجد أقسام بعد", "ستظهر الأقسام هنا فور إضافتها من الإدارة")
+                                }
+                            }
+                        }
+                        item {
+                            Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                SECTIONS.chunked(2).forEach { row ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        row.forEach { s ->
+                                            SectionTile(s, Modifier.weight(1f)) { nav.navigate("section/${s.key}") }
+                                        }
+                                        if (row.size == 1) Spacer(Modifier.weight(1f))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -138,8 +148,9 @@ fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     }
 }
 
+/** بطاقة قسم: صورة مربعة 1×1 ثم الاسم */
 @Composable
-private fun SectionTile(s: Section, count: Int, modifier: Modifier, onClick: () -> Unit) {
+private fun SectionTile(s: Section, modifier: Modifier, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = MaterialTheme.shapes.large,
@@ -148,15 +159,15 @@ private fun SectionTile(s: Section, count: Int, modifier: Modifier, onClick: () 
         modifier = modifier
     ) {
         val cover = rememberDataImage(s.image)
-        Column(Modifier.padding(14.dp).heightIn(min = 96.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            if (cover != null) {
-                DataImage(cover, Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(12.dp)))
-                Spacer(Modifier.height(8.dp))
-            } else SectionBadge(s.key, 40)
-            Column {
-                Text(s.title, style = MaterialTheme.typography.titleMedium)
-                Text(if (count == 0) "لا أنشطة بعد" else "$count نشاط", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).background(s.tint.copy(alpha = 0.14f)),
+                Alignment.Center
+            ) {
+                if (cover != null) DataImage(cover, Modifier.fillMaxSize())
+                else SectionBadge(s.key, 56)
             }
+            Text(s.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 2.dp))
         }
     }
 }
@@ -188,51 +199,6 @@ fun SectionScreen(nav: NavController, vm: AppViewModel, key: String) {
                 } else {
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         placeItems(shown, favs, nav)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ───────────────────────── بحث ─────────────────────────
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SearchScreen(nav: NavController, vm: AppViewModel, unread: Int) {
-    val places by vm.places.collectAsStateWithLifecycle()
-    val feed by vm.feed.collectAsStateWithLifecycle()
-    val favs by Prefs.favs.collectAsStateWithLifecycle()
-    var q by rememberSaveable { mutableStateOf("") }
-    var secTitle by rememberSaveable { mutableStateOf<String?>(null) }
-    val secKey = SECTIONS.firstOrNull { it.title == secTitle }?.key
-    val results = remember(places, q, secKey) { searchPlaces(places, q, secKey) }
-
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("بحث", fontWeight = FontWeight.Bold) }) },
-        bottomBar = { MainBar(nav, "search", unread) }
-    ) { pad ->
-        Column(Modifier.padding(pad)) {
-            OutlinedTextField(
-                value = q, onValueChange = { q = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                placeholder = { Text("اسم المحل، المهنة، الخدمة...") },
-                leadingIcon = { Icon(Icons.Filled.Search, null) },
-                trailingIcon = { if (q.isNotEmpty()) IconButton({ q = "" }) { Icon(Icons.Filled.Close, "مسح") } },
-                singleLine = true,
-                shape = MaterialTheme.shapes.large
-            )
-            Spacer(Modifier.height(8.dp))
-            ChipRow(SECTIONS.map { it.title }, secTitle) { secTitle = it }
-            Spacer(Modifier.height(8.dp))
-            LoadGate(feed, vm::loadFeed) {
-                when {
-                    q.isBlank() && secKey == null ->
-                        EmptyState("🔎", "ابحث في كل الأقسام", "اكتب اسماً أو مهنة أو خدمة، أو اختر قسماً من الأعلى")
-                    results.isEmpty() ->
-                        EmptyState("🤷", "لا توجد نتائج", "جرّب كلمة أخرى أو قسماً مختلفاً")
-                    else -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        item { Text("${results.size} نتيجة", Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                        placeItems(results, favs, nav)
                     }
                 }
             }
@@ -277,7 +243,27 @@ fun NewsScreen(nav: NavController, vm: AppViewModel) {
                 EmptyState("📢", "لا توجد إعلانات", "ستظهر هنا إعلانات الإدارة")
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    items(news, key = { it.id }) { n -> AnnouncementCard(n, Modifier.fillMaxWidth()) }
+                    items(news, key = { it.id }) { n -> AnnouncementCard(n, Modifier.fillMaxWidth()) { nav.navigate("news/${n.id}") } }
+                }
+            }
+        }
+    }
+}
+
+/** صفحة إعلان واحد: الصورة والنص كاملين وزر الرابط */
+@Composable
+fun AnnouncementScreen(nav: NavController, vm: AppViewModel, id: String) {
+    val news by vm.news.collectAsStateWithLifecycle()
+    val n = news.firstOrNull { it.id == id }
+    SubScaffold("الإعلان", { nav.popBackStack() }) { pad ->
+        Box(Modifier.padding(pad)) {
+            if (n == null) {
+                EmptyState("📢", "هذا الإعلان لم يعد متاحاً", "ربما انتهت مدته أو أُوقف من الإدارة", "كل الإعلانات") {
+                    nav.navigate("news") { popUpTo("news/{id}") { inclusive = true } }
+                }
+            } else {
+                LazyColumn(contentPadding = PaddingValues(16.dp)) {
+                    item { AnnouncementCard(n, Modifier.fillMaxWidth()) }
                 }
             }
         }

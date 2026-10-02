@@ -71,10 +71,7 @@ fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String)
             if (kind == "edit") {
                 Text("التعديل يُراجع من الإدارة قبل أن يظهر للناس.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text("القسم", style = MaterialTheme.typography.titleMedium)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(SECTIONS) { s -> FilterChip(section == s.key, { section = s.key }, { Text(s.title) }) }
-            }
+            SectionDropdown(section) { section = it }
             TextBox(name, "اسم النشاط *", 100, { name = it })
             TextBox(services, "الخدمات", 500, { services = it }, singleLine = false)
             TextBox(address, "الموقع / العنوان", 200, { address = it })
@@ -99,6 +96,33 @@ fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String)
                     }
                 }
             ) { Text(if (sending) "جارٍ الإرسال..." else "إرسال الطلب") }
+        }
+    }
+}
+
+/** قائمة منسدلة لاختيار القسم */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SectionDropdown(selectedKey: String, onSelect: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val current = SECTIONS.firstOrNull { it.key == selectedKey }
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
+        OutlinedTextField(
+            value = current?.title.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("القسم *") },
+            placeholder = { Text("اختر القسم") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
+            modifier = Modifier.menuAnchor().fillMaxWidth()
+        )
+        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            SECTIONS.forEach { s ->
+                DropdownMenuItem(
+                    text = { Text(s.title) },
+                    onClick = { onSelect(s.key); open = false }
+                )
+            }
         }
     }
 }

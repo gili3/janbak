@@ -56,7 +56,7 @@ object Repo {
             val d = AppSettings()
             if (s != null && s.exists()) {
                 fun v(k: String, def: String) = (s.get(k) as? String)?.takeIf { it.isNotBlank() } ?: def
-                trySend(AppSettings(v("tagline", d.tagline), v("searchHint", d.searchHint), v("addTitle", d.addTitle), v("addBody", d.addBody)))
+                trySend(AppSettings(v("tagline", d.tagline), v("searchHint", d.searchHint)))
             } else trySend(d)
         }
         awaitClose { reg.remove() }
@@ -247,7 +247,7 @@ private fun DocumentSnapshot.toSection(): Section? {
 private fun DocumentSnapshot.toAnnouncement(): Announcement? {
     val title = str("title")
     if (title.isBlank()) return null
-    return Announcement(id, title, str("body"), (get("pinned") as? Boolean) == true, millis("createdAt"), millis("expiresAt"), str("image"))
+    return Announcement(id, title, str("body"), (get("pinned") as? Boolean) == true, millis("createdAt"), millis("expiresAt"), str("image"), str("link"))
 }
 
 private fun DocumentSnapshot.toRequest() = MyRequest(

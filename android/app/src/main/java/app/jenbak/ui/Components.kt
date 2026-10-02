@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.util.Base64
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -35,6 +36,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -263,16 +265,21 @@ fun ConfirmDialog(
 }
 
 
-/** بطاقة إعلان: صورة بنسبة 16:9 (أو غلاف بديل)، شارة «مثبّت»، العنوان والنص والتواريخ */
+/**
+ * بطاقة إعلان: صورة 16:9 (أو غلاف بديل)، شارة «مثبّت»، العنوان، النص، وتاريخ النشر/الانتهاء.
+ * compact: للشاشة الرئيسية (عنوان سطران ونص سطران). غير ذلك: النص كاملاً.
+ */
 @Composable
 fun AnnouncementCard(n: Announcement, modifier: Modifier = Modifier, compact: Boolean = false, onClick: (() -> Unit)? = null) {
     val cs = MaterialTheme.colorScheme
     val bmp = rememberDataImage(n.image)
+    val ctx = LocalContext.current
+    val link = n.link.trim().takeIf { it.startsWith("http://") || it.startsWith("https://") }
     val body: @Composable () -> Unit = {
         Column {
             Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(cs.primaryContainer), Alignment.Center) {
                 if (bmp != null) DataImage(bmp, Modifier.fillMaxSize())
-                else Icon(Icons.Filled.Notifications, null, Modifier.size(40.dp), tint = cs.onPrimaryContainer.copy(alpha = 0.6f))
+                else Icon(Icons.Filled.Notifications, null, Modifier.size(36.dp), tint = cs.onPrimaryContainer.copy(alpha = 0.6f))
                 if (n.pinned) {
                     Surface(
                         shape = RoundedCornerShape(50), color = cs.tertiary, contentColor = cs.onTertiary,
@@ -282,18 +289,35 @@ fun AnnouncementCard(n: Announcement, modifier: Modifier = Modifier, compact: Bo
                     }
                 }
             }
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(n.title, style = MaterialTheme.typography.titleMedium, maxLines = if (compact) 2 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    n.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                    maxLines = if (compact) 2 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis
+                )
                 if (n.body.isNotBlank()) {
                     Text(
                         n.body, style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant,
                         maxLines = if (compact) 2 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (link != null && !compact) {
+                    FilledTonalButton({ ctx.safeStart(Intent(Intent.ACTION_VIEW, Uri.parse(link))) }) { Text("فتح الرابط") }
+                }
                 val d = formatDate(n.createdAt)
                 val e = formatDate(n.expiresAt)
-                val meta = listOf(d, if (e.isNotEmpty()) "ينتهي $e" else "").filter { it.isNotEmpty() }.joinToString(" • ")
-                if (meta.isNotEmpty()) Text(meta, style = MaterialTheme.typography.bodySmall, color = cs.outline)
+                if (d.isNotEmpty() || e.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (d.isNotEmpty()) Text(d, style = MaterialTheme.typography.labelSmall, color = cs.outline)
+                        if (e.isNotEmpty()) {
+                            Surface(shape = RoundedCornerShape(50), color = cs.secondaryContainer) {
+                                Text(
+                                    "ينتهي $e", Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall, color = cs.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
