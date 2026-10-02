@@ -176,7 +176,7 @@ private fun SectionTile(s: Section, modifier: Modifier, onClick: () -> Unit) {
 @Composable
 fun SectionScreen(nav: NavController, vm: AppViewModel, key: String) {
     val s = sectionOf(key)
-    if (s == null) { nav.popBackStack(); return }
+    if (s == null) { LaunchedEffect(Unit) { nav.popBackStack() }; return }
     val places by vm.places.collectAsStateWithLifecycle()
     val feed by vm.feed.collectAsStateWithLifecycle()
     val favs by Prefs.favs.collectAsStateWithLifecycle()

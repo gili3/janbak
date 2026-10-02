@@ -2,6 +2,12 @@ package app.jenbak.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +34,7 @@ import app.jenbak.data.*
 @Composable
 fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val ctx = LocalContext.current
+    val cs = MaterialTheme.colorScheme
     val user by vm.user.collectAsStateWithLifecycle()
     val mine by vm.myPlaces.collectAsStateWithLifecycle()
     val reqs by vm.myRequests.collectAsStateWithLifecycle()
@@ -43,60 +50,103 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
         bottomBar = { MainBar(nav, "account", unread) }
     ) { pad ->
         Column(
-            Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            Modifier.padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             val u = user
-            if (u == null || u.isGuest) {
-                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("أنت تتصفح كضيف", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text("سجّل الدخول بحساب جوجل لإضافة نشاطك ومتابعة طلباتك واستلام الإشعارات.", color = MaterialTheme.colorScheme.onPrimaryContainer)
+            val signedIn = u != null && !u.isGuest
+
+            // ── بطاقة الحساب ──
+            if (!signedIn) {
+                Surface(shape = MaterialTheme.shapes.extraLarge, color = cs.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("أنت تتصفح كضيف", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = cs.onPrimaryContainer)
+                        Text(
+                            "سجّل الدخول بحساب جوجل لإضافة نشاطك ومتابعة طلباتك واستلام الإشعارات.",
+                            style = MaterialTheme.typography.bodyMedium, color = cs.onPrimaryContainer
+                        )
                         GoogleSignInButton(vm, label = "الدخول بحساب جوجل")
                     }
                 }
             } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(48.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), Alignment.Center) { Text("👤", fontSize = 22.sp) }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(u.name.ifBlank { u.email.ifBlank { "مستخدم" } }, style = MaterialTheme.typography.titleMedium)
-                        if (u.name.isNotBlank() && u.email.isNotBlank()) Text(u.email, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("حساب جوجل", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val name = u!!.name.ifBlank { u.email.ifBlank { "مستخدم" } }
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge, color = cs.surfaceContainerLowest,
+                    border = BorderStroke(1.dp, cs.outlineVariant), modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(56.dp).clip(CircleShape).background(cs.primary), Alignment.Center) {
+                            Text(name.take(1), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = cs.onPrimary)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (u.name.isNotBlank() && u.email.isNotBlank()) {
+                                Text(u.email, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            Text("حساب جوجل", style = MaterialTheme.typography.labelSmall, color = cs.outline)
+                        }
                     }
                 }
-                MenuRow("🏪", "أنشطتي", mine.size.takeIf { it > 0 }?.toString()) { nav.navigate("myplaces") }
-                MenuRow("📋", "طلباتي", reqs.count { it.status == "pending" }.takeIf { it > 0 }?.let { "$it قيد المراجعة" }) { nav.navigate("mine") }
-                MenuRow("🔔", "الإشعارات", unread.takeIf { it > 0 }?.toString()) { nav.navigate("inbox") }
-                Button({ startAdd(nav, vm) }, Modifier.fillMaxWidth()) { Text("أضف نشاطاً جديداً") }
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            Text("الإعدادات", style = MaterialTheme.typography.titleMedium)
-            Text("المظهر", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("حسب الجهاز", "فاتح", "داكن").forEachIndexed { i, label ->
-                    FilterChip(theme == i, { Prefs.setTheme(i) }, { Text(label) })
-                }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("إشعارات الإعلانات")
-                    Text("تنبيه عند نشر إعلان جديد", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(newsPush, { vm.setNewsPush(it) })
+            // ── إضافة نشاط (للجميع؛ الضيف يُحوَّل لتسجيل الدخول) ──
+            Button({ startAdd(nav, vm) }, Modifier.fillMaxWidth().height(52.dp)) {
+                Icon(Icons.Filled.Add, null)
+                Spacer(Modifier.width(8.dp))
+                Text("أضف نشاطك", style = MaterialTheme.typography.titleMedium)
             }
 
-            if (u != null && !u.isGuest) {
-                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            // ── قوائمي ──
+            if (signedIn) {
+                GroupCard {
+                    MenuRow("🏪", "أنشطتي", mine.size.takeIf { it > 0 }?.toString()) { nav.navigate("myplaces") }
+                    HorizontalDivider(color = cs.outlineVariant)
+                    MenuRow("📋", "طلباتي", reqs.count { it.status == "pending" }.takeIf { it > 0 }?.let { "$it قيد المراجعة" }) { nav.navigate("mine") }
+                    HorizontalDivider(color = cs.outlineVariant)
+                    MenuRow("🔔", "الإشعارات", unread.takeIf { it > 0 }?.toString()) { nav.navigate("inbox") }
+                }
+            }
+
+            // ── الإعدادات ──
+            Text("الإعدادات", style = MaterialTheme.typography.titleSmall, color = cs.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
+            GroupCard {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("المظهر", style = MaterialTheme.typography.bodyLarge)
+                    val labels = listOf("حسب الجهاز", "فاتح", "داكن")
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                        labels.forEachIndexed { i, label ->
+                            SegmentedButton(
+                                selected = theme == i,
+                                onClick = { Prefs.setTheme(i) },
+                                shape = SegmentedButtonDefaults.itemShape(i, labels.size)
+                            ) { Text(label, maxLines = 1) }
+                        }
+                    }
+                }
+                HorizontalDivider(color = cs.outlineVariant)
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("إشعارات الإعلانات", style = MaterialTheme.typography.bodyLarge)
+                        Text("تنبيه عند نشر إعلان جديد", style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                    }
+                    Switch(newsPush, { vm.setNewsPush(it) })
+                }
+            }
+
+            // ── الخروج والحذف ──
+            if (signedIn) {
                 OutlinedButton({ confirmOut = true }, Modifier.fillMaxWidth()) { Text("تسجيل الخروج") }
                 TextButton(
-                    { confirmDelete = true }, Modifier.fillMaxWidth(),
+                    { confirmDelete = true }, Modifier.align(Alignment.CenterHorizontally),
                     enabled = !deleting,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    colors = ButtonDefaults.textButtonColors(contentColor = cs.error)
                 ) { Text(if (deleting) "جارٍ الحذف..." else "حذف حسابي وبياناتي") }
             }
-            Text("جنبك $version", Modifier.align(Alignment.CenterHorizontally), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+            Text(
+                "جنبك $version", Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp),
+                style = MaterialTheme.typography.bodySmall, color = cs.outline
+            )
         }
     }
 
@@ -111,25 +161,36 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     )
 }
 
+/** مجموعة صفوف داخل بطاقة واحدة */
 @Composable
-private fun MenuRow(emoji: String, title: String, trailing: String?, onClick: () -> Unit) {
+private fun GroupCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        onClick = onClick,
         shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainerLowest,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier.fillMaxWidth()
+    ) { Column(content = content) }
+}
+
+@Composable
+private fun MenuRow(emoji: String, title: String, trailing: String?, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 20.sp)
-            Spacer(Modifier.width(12.dp))
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-            if (trailing != null) {
-                Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(trailing, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                }
+        Text(emoji, fontSize = 20.sp)
+        Spacer(Modifier.width(12.dp))
+        Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        if (trailing != null) {
+            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary) {
+                Text(
+                    trailing, Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimary
+                )
             }
+            Spacer(Modifier.width(8.dp))
         }
+        Icon(Icons.Filled.KeyboardArrowLeft, null, tint = MaterialTheme.colorScheme.outline)
     }
 }
 
