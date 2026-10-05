@@ -6,11 +6,12 @@ on:
   workflow_dispatch:
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: 22 }
       - run: npx -y firebase-tools deploy --only firestore:rules,firestore:indexes --project "$PROJECT" --token "$TOKEN" --force
         env:
           PROJECT: ${{ secrets.FIREBASE_PROJECT_ID }}

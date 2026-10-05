@@ -4,12 +4,18 @@ on:
     branches: [main]
     paths: ["android/**", ".github/workflows/android.yml"]
   workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: 17 }
       - name: Write google-services.json and keystore
         env:
@@ -18,7 +24,7 @@ jobs:
         run: |
           echo "$GS" | base64 -d > android/app/google-services.json
           echo "$KS" | base64 -d > "$RUNNER_TEMP/jenbak.jks"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
         with: { gradle-version: "8.9" }
       - name: Build signed APK
         working-directory: android
@@ -28,7 +34,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: jenbak-apk
           path: android/app/build/outputs/apk/release/*.apk

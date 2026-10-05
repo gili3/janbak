@@ -59,6 +59,14 @@ fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String)
     var wa by rememberSaveable(mode, id) { mutableStateOf(initial.whatsapp) }
     var sending by remember { mutableStateOf(false) }
 
+    // عند فتح التعديل أو إعادة الإرسال قبل وصول البيانات، نملأ الحقول فور وصولها بدل تركها فارغة
+    LaunchedEffect(initial) {
+        if (name.isBlank() && initial.name.isNotBlank()) {
+            name = initial.name; section = initial.section; services = initial.services
+            address = initial.address; hours = initial.hours; phone = initial.phone; wa = initial.whatsapp
+        }
+    }
+
     // القسم الأول افتراضياً للنشاط الجديد
     LaunchedEffect(SECTIONS) { if (section.isBlank() || SECTIONS.none { it.key == section }) section = SECTIONS.firstOrNull()?.key.orEmpty() }
     val valid = name.isNotBlank() && section.isNotBlank() && Phone.valid(phone) && (wa.isEmpty() || Phone.valid(wa))

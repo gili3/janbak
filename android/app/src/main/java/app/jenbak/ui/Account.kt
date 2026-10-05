@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.*
@@ -37,7 +36,6 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val cs = MaterialTheme.colorScheme
     val user by vm.user.collectAsStateWithLifecycle()
     val mine by vm.myPlaces.collectAsStateWithLifecycle()
-    val reqs by vm.myRequests.collectAsStateWithLifecycle()
     val theme by Prefs.theme.collectAsStateWithLifecycle()
     val newsPush by Prefs.newsPush.collectAsStateWithLifecycle()
     var confirmOut by remember { mutableStateOf(false) }
@@ -45,8 +43,11 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     var deleting by remember { mutableStateOf(false) }
     val version = remember { runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: "" }
 
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+
+    SideMenu(nav, vm, drawer) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("حسابي", fontWeight = FontWeight.Bold) }) },
+        topBar = { TopAppBar(title = { Text("حسابي", fontWeight = FontWeight.Bold) }, navigationIcon = { MenuButton(drawer) }) },
         bottomBar = { MainBar(nav, "account", unread) }
     ) { pad ->
         Column(
@@ -62,7 +63,7 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("أنت تتصفح كضيف", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = cs.onPrimaryContainer)
                         Text(
-                            "سجّل الدخول بحساب جوجل لإضافة نشاطك ومتابعة طلباتك واستلام الإشعارات.",
+                            "سجّل الدخول بحساب جوجل لإضافة نشاطك من القائمة الجانبية ومتابعة طلباتك واستلام الإشعارات.",
                             style = MaterialTheme.typography.bodyMedium, color = cs.onPrimaryContainer
                         )
                         GoogleSignInButton(vm, label = "الدخول بحساب جوجل")
@@ -90,19 +91,10 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
                 }
             }
 
-            // ── إضافة نشاط (للجميع؛ الضيف يُحوَّل لتسجيل الدخول) ──
-            Button({ startAdd(nav, vm) }, Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(Icons.Filled.Add, null)
-                Spacer(Modifier.width(8.dp))
-                Text("أضف نشاطك", style = MaterialTheme.typography.titleMedium)
-            }
-
             // ── قوائمي ──
             if (signedIn) {
                 GroupCard {
                     MenuRow("🏪", "أنشطتي", mine.size.takeIf { it > 0 }?.toString()) { nav.navigate("myplaces") }
-                    HorizontalDivider(color = cs.outlineVariant)
-                    MenuRow("📋", "طلباتي", reqs.count { it.status == "pending" }.takeIf { it > 0 }?.let { "$it قيد المراجعة" }) { nav.navigate("mine") }
                     HorizontalDivider(color = cs.outlineVariant)
                     MenuRow("🔔", "الإشعارات", unread.takeIf { it > 0 }?.toString()) { nav.navigate("inbox") }
                 }
@@ -148,6 +140,7 @@ fun AccountScreen(nav: NavController, vm: AppViewModel, unread: Int) {
                 style = MaterialTheme.typography.bodySmall, color = cs.outline
             )
         }
+    }
     }
 
     if (confirmOut) ConfirmDialog("تسجيل الخروج", "هل تريد تسجيل الخروج؟", "خروج", onConfirm = { confirmOut = false; vm.signOut() }, onDismiss = { confirmOut = false })
@@ -202,7 +195,7 @@ fun MyPlacesScreen(nav: NavController, vm: AppViewModel) {
     SubScaffold("أنشطتي", { nav.popBackStack() }) { pad ->
         Box(Modifier.padding(pad)) {
             if (mine.isEmpty()) {
-                EmptyState("🏪", "لا توجد أنشطة بعد", "الأنشطة المقبولة تظهر هنا ويمكنك اقتراح تعديل عليها", "أضف نشاطك") { startAdd(nav, vm) }
+                EmptyState("🏪", "لا توجد أنشطة بعد", "الأنشطة المقبولة تظهر هنا ويمكنك اقتراح تعديل عليها")
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(mine, key = { it.id }) { p ->
@@ -231,7 +224,7 @@ fun MyRequestsScreen(nav: NavController, vm: AppViewModel) {
     SubScaffold("طلباتي", { nav.popBackStack() }) { pad ->
         Box(Modifier.padding(pad)) {
             if (reqs.isEmpty()) {
-                EmptyState("📋", "لم ترسل أي طلب بعد", "ستظهر هنا حالة كل طلب ترسله", "أضف نشاطك") { startAdd(nav, vm) }
+                EmptyState("📋", "لم ترسل أي طلب بعد", "ستظهر هنا حالة كل طلب ترسله")
             } else {
                 LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(reqs, key = { it.id }) { r ->

@@ -8,11 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,7 +34,7 @@ fun LazyListScope.placeItems(list: List<Place>, favs: Set<String>, nav: NavContr
     }
 }
 
-/** إضافة نشاط تتطلب تسجيل الدخول */
+/** إضافة نشاط تتطلب تسجيل الدخول. تُستدعى من القائمة الجانبية فقط */
 fun startAdd(nav: NavController, vm: AppViewModel) {
     val u = vm.user.value
     if (u == null || u.isGuest) nav.navigate("login") else nav.navigate("editor/new/-")
@@ -47,7 +45,6 @@ fun startAdd(nav: NavController, vm: AppViewModel) {
 @Composable
 fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val places by vm.places.collectAsStateWithLifecycle()
-    val news by vm.news.collectAsStateWithLifecycle()
     val cfg by vm.settings.collectAsStateWithLifecycle()
     val feed by vm.feed.collectAsStateWithLifecycle()
     val favs by Prefs.favs.collectAsStateWithLifecycle()
@@ -56,14 +53,14 @@ fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val searching = q.isNotBlank()
     val secKey = SECTIONS.firstOrNull { it.title == secTitle }?.key
     val results = remember(places, q, secKey) { if (q.isBlank()) emptyList() else searchPlaces(places, q, secKey) }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
 
+    SideMenu(nav, vm, drawer) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("جنبك", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton({ nav.navigate("news") }) { Icon(Icons.Filled.Notifications, contentDescription = "الإعلانات") }
-                }
+                navigationIcon = { MenuButton(drawer) }
             )
         },
         bottomBar = { MainBar(nav, "home", unread) }
@@ -103,25 +100,6 @@ fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
                                 modifier = Modifier.padding(horizontal = 16.dp)
                             )
                         }
-                        if (news.isNotEmpty()) {
-                            item {
-                                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("الإعلانات", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                                    if (news.size > 1) TextButton({ nav.navigate("news") }) { Text("عرض الكل") }
-                                }
-                            }
-                            item {
-                                if (news.size == 1) {
-                                    AnnouncementCard(news[0], Modifier.padding(horizontal = 16.dp).fillMaxWidth(), compact = true) { nav.navigate("news/${news[0].id}") }
-                                } else {
-                                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        items(news.take(6), key = { it.id }) { n ->
-                                            AnnouncementCard(n, Modifier.width(300.dp), compact = true) { nav.navigate("news/${n.id}") }
-                                        }
-                                    }
-                                }
-                            }
-                        }
                         if (SECTIONS.isEmpty()) {
                             item {
                                 Box(Modifier.fillMaxWidth().height(220.dp)) {
@@ -145,6 +123,7 @@ fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
                 }
             }
         }
+    }
     }
 }
 
@@ -195,7 +174,7 @@ fun SectionScreen(nav: NavController, vm: AppViewModel, key: String) {
                     TextButton({ newest = !newest }) { Text(if (newest) "الترتيب: الأحدث" else "الترتيب: الاسم") }
                 }
                 if (shown.isEmpty()) {
-                    EmptyState("🔍", "لا توجد أنشطة هنا بعد", s.examples.takeIf { it.isNotBlank() }?.let { "مثال: $it" } ?: "", "أضف نشاطك") { startAdd(nav, vm) }
+                    EmptyState("🔍", "لا توجد أنشطة هنا بعد", listOfNotNull(s.examples.takeIf { it.isNotBlank() }?.let { "مثال: $it" }, "لإضافة نشاطك افتح القائمة من الرئيسية").joinToString("\n"))
                 } else {
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         placeItems(shown, favs, nav)
@@ -214,9 +193,11 @@ fun FavoritesScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val feed by vm.feed.collectAsStateWithLifecycle()
     val favs by Prefs.favs.collectAsStateWithLifecycle()
     val list = remember(places, favs) { places.filter { it.id in favs }.sortedBy { it.normName } }
+    val drawer = rememberDrawerState(DrawerValue.Closed)
 
+    SideMenu(nav, vm, drawer) {
     Scaffold(
-        topBar = { TopAppBar(title = { Text("المفضلة", fontWeight = FontWeight.Bold) }) },
+        topBar = { TopAppBar(title = { Text("المفضلة", fontWeight = FontWeight.Bold) }, navigationIcon = { MenuButton(drawer) }) },
         bottomBar = { MainBar(nav, "favs", unread) }
     ) { pad ->
         Box(Modifier.padding(pad)) {
@@ -230,6 +211,7 @@ fun FavoritesScreen(nav: NavController, vm: AppViewModel, unread: Int) {
                 }
             }
         }
+    }
     }
 }
 
