@@ -113,6 +113,25 @@ data class Announcement(
     val link: String = ""
 )
 
+data class MyRequest(
+    val id: String,
+    val kind: String,
+    val placeId: String,
+    val status: String,
+    val rejectReason: String,
+    val createdAt: Long,
+    val draft: Draft
+)
+
+data class InboxItem(
+    val id: String,
+    val title: String,
+    val body: String,
+    val type: String,
+    val read: Boolean,
+    val createdAt: Long
+)
+
 // ───────────────────────── الهاتف ─────────────────────────
 /** أرقام سودانية: 0 ثم 9 أرقام، وتُرسل إلى فايربيس بصيغة +249 */
 object Phone {

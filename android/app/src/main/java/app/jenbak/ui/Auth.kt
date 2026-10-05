@@ -104,7 +104,7 @@ fun WelcomeScreen(vm: AppViewModel) {
             ) { Text(if (guestBusy) "جارٍ الدخول..." else "الدخول كضيف") }
             Spacer(Modifier.height(16.dp))
             Text(
-                "الضيف يتصفح الدليل فقط. لإضافة نشاطك يلزم حساب جوجل، ويمكنك ربطه لاحقاً.",
+                "الضيف يتصفح الدليل فقط. لإضافة نشاطك ومتابعة طلباتك يلزم حساب جوجل، ويمكنك ربطه لاحقاً.",
                 style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -122,7 +122,7 @@ fun LoginScreen(nav: NavController, vm: AppViewModel) {
             Text("🔐", fontSize = 40.sp)
             Text("سجّل الدخول بحساب جوجل", style = MaterialTheme.typography.titleLarge)
             Text(
-                "نحتاج حسابك لربط النشاط الذي تضيفه بك. يظهر بريدك للإدارة عند المراجعة فقط.",
+                "نحتاج حسابك لنرسل لك نتيجة مراجعة طلباتك. يظهر بريدك للإدارة عند المراجعة فقط.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             GoogleSignInButton(vm)

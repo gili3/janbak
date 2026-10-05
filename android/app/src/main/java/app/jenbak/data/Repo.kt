@@ -63,6 +63,8 @@ object Repo {
     }
     fun announcements() = db.collection("announcements").whereEqualTo("active", true).watch { it.toAnnouncement() }
     fun myPlaces(uid: String) = db.collection("places").whereEqualTo("ownerUid", uid).watch { it.toPlace() }
+    fun myRequests(uid: String) = db.collection("requests").whereEqualTo("ownerUid", uid).watch { it.toRequest() }
+    fun inbox(uid: String) = db.collection("inbox").document(uid).collection("items").watch { it.toInbox() }
 
     private fun requireOnline() {
         if (!Net.check()) throw AppException("لا يوجد اتصال بالإنترنت، حاول عند توفره")
@@ -117,6 +119,32 @@ object Repo {
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
             throw AppException("انتهت مهلة الاتصال، تحقق من الإنترنت وحاول مرة أخرى")
         }
+    }
+
+    suspend fun cancelRequest(id: String) {
+        db.collection("requests").document(id).delete().await()
+    }
+
+    suspend fun markInboxRead(uid: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        val batch = db.batch()
+        val col = db.collection("inbox").document(uid).collection("items")
+        ids.forEach { batch.update(col.document(it), "read", true) }
+        batch.commit().await()
+    }
+
+    suspend fun saveToken(uid: String, token: String) {
+        db.collection("users").document(uid).set(
+            mapOf("fcmToken" to token, "platform" to "android", "updatedAt" to FieldValue.serverTimestamp()),
+            SetOptions.merge()
+        ).await()
+    }
+
+    suspend fun clearToken(uid: String) {
+        db.collection("users").document(uid).set(
+            mapOf("fcmToken" to FieldValue.delete(), "updatedAt" to FieldValue.serverTimestamp()),
+            SetOptions.merge()
+        ).await()
     }
 
     /** إحصائية مجهولة لضغطة اتصال/واتساب؛ تفشل بصمت ولا تؤثر على المستخدم، ولا تُرسل بلا إنترنت */
@@ -221,3 +249,20 @@ private fun DocumentSnapshot.toAnnouncement(): Announcement? {
     if (title.isBlank()) return null
     return Announcement(id, title, str("body"), (get("pinned") as? Boolean) == true, millis("createdAt"), millis("expiresAt"), str("image"), str("link"))
 }
+
+private fun DocumentSnapshot.toRequest() = MyRequest(
+    id = id,
+    kind = str("kind").ifEmpty { "new" },
+    placeId = str("placeId"),
+    status = str("status").ifEmpty { "pending" },
+    rejectReason = str("rejectReason"),
+    createdAt = millis("createdAt"),
+    draft = Draft(
+        str("name"), str("section"), str("services"),
+        str("address"), str("hours"), str("phone"), str("whatsapp")
+    )
+)
+
+private fun DocumentSnapshot.toInbox() = InboxItem(
+    id, str("title"), str("body"), str("type"), (get("read") as? Boolean) == true, millis("createdAt")
+)

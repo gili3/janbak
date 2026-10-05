@@ -23,9 +23,6 @@ android {
                 storePassword = System.getenv("KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("KEY_ALIAS")
                 keyPassword = System.getenv("KEY_PASSWORD")
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
             }
         }
     }
@@ -36,8 +33,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // توقيع ثابت بمفتاح المشروع (نفس المفتاح في كل إصدار). بلا مفتاح (بناء محلي) يُوقَّع بمفتاح debug ليظل قابلاً للتثبيت
-            signingConfig = if (hasKey) ci else signingConfigs.getByName("debug")
+            if (hasKey) signingConfig = ci
         }
         getByName("debug") { if (hasKey) signingConfig = ci }
     }
@@ -55,6 +51,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.3.0"))
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-messaging-ktx")
     // تسجيل الدخول بجوجل عبر Credential Manager (يتطلب تفعيل Google في Firebase وبصمة SHA-1)
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")

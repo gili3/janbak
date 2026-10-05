@@ -7,10 +7,13 @@ import app.jenbak.data.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withTimeoutOrNull
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
     // بيانات عامة
@@ -26,6 +29,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val user = MutableStateFlow(Firebase.auth.currentUser.toMe())
     val settings = MutableStateFlow(AppSettings())
     val myPlaces = MutableStateFlow<List<Place>>(emptyList())
+    val myRequests = MutableStateFlow<List<MyRequest>>(emptyList())
+    val inbox = MutableStateFlow<List<InboxItem>>(emptyList())
 
     private var feedJob: Job? = null
     private var userJob: Job? = null
@@ -80,19 +85,53 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private fun watchUser(u: Me?) {
         userJob?.cancel()
         if (u == null) {
-            myPlaces.value = emptyList()
+            myPlaces.value = emptyList(); myRequests.value = emptyList(); inbox.value = emptyList()
             return
         }
         userJob = viewModelScope.launch {
             launch { Repo.myPlaces(u.uid).catch { }.collect { myPlaces.value = it.items } }
+            launch {
+                Repo.myRequests(u.uid).catch { }.collect { s -> myRequests.value = s.items.sortedByDescending { it.createdAt } }
+            }
+            launch {
+                Repo.inbox(u.uid).catch { }.collect { s -> inbox.value = s.items.sortedByDescending { it.createdAt } }
+            }
+            launch {
+                runCatching {
+                    val token = FirebaseMessaging.getInstance().token.await()
+                    Repo.saveToken(u.uid, token)
+                }
+            }
         }
     }
 
     fun placeById(id: String): Place? =
         places.value.firstOrNull { it.id == id } ?: myPlaces.value.firstOrNull { it.id == id }
 
+    fun requestById(id: String): MyRequest? = myRequests.value.firstOrNull { it.id == id }
+
+    fun markInboxRead() {
+        val u = user.value ?: return
+        val ids = inbox.value.filter { !it.read }.map { it.id }
+        if (ids.isEmpty()) return
+        viewModelScope.launch { runCatching { Repo.markInboxRead(u.uid, ids) } }
+    }
+
+    fun cancelRequest(id: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(runCatching { Repo.cancelRequest(id) }.isSuccess) }
+    }
+
+    fun setNewsPush(on: Boolean) {
+        Prefs.setNewsPush(on)
+        val m = FirebaseMessaging.getInstance()
+        if (on) m.subscribeToTopic("all") else m.unsubscribeFromTopic("all")
+    }
+
     fun signOut() {
-        Firebase.auth.signOut()
+        viewModelScope.launch {
+            user.value?.let { u -> withTimeoutOrNull(3000) { runCatching { Repo.clearToken(u.uid) } } }
+            Firebase.auth.signOut()
+        }
     }
 
     fun deleteAccount(onResult: (String?) -> Unit) {

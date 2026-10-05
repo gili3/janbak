@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -44,7 +45,7 @@ fun startAdd(nav: NavController, vm: AppViewModel) {
 // ───────────────────────── الرئيسية ─────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(nav: NavController, vm: AppViewModel) {
+fun HomeScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val places by vm.places.collectAsStateWithLifecycle()
     val news by vm.news.collectAsStateWithLifecycle()
     val cfg by vm.settings.collectAsStateWithLifecycle()
@@ -58,9 +59,14 @@ fun HomeScreen(nav: NavController, vm: AppViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("جنبك", fontWeight = FontWeight.Bold) })
+            TopAppBar(
+                title = { Text("جنبك", fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton({ nav.navigate("news") }) { Icon(Icons.Filled.Notifications, contentDescription = "الإعلانات") }
+                }
+            )
         },
-        bottomBar = { MainBar(nav, "home") }
+        bottomBar = { MainBar(nav, "home", unread) }
     ) { pad ->
         Column(Modifier.padding(pad)) {
             // شريط البحث: هو البحث الوحيد في التطبيق، ويعرض النتائج هنا مباشرة
@@ -189,7 +195,7 @@ fun SectionScreen(nav: NavController, vm: AppViewModel, key: String) {
                     TextButton({ newest = !newest }) { Text(if (newest) "الترتيب: الأحدث" else "الترتيب: الاسم") }
                 }
                 if (shown.isEmpty()) {
-                    EmptyState("🔍", "لا توجد أنشطة هنا بعد", s.examples.takeIf { it.isNotBlank() }?.let { "مثال: $it" } ?: "")
+                    EmptyState("🔍", "لا توجد أنشطة هنا بعد", s.examples.takeIf { it.isNotBlank() }?.let { "مثال: $it" } ?: "", "أضف نشاطك") { startAdd(nav, vm) }
                 } else {
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         placeItems(shown, favs, nav)
@@ -203,7 +209,7 @@ fun SectionScreen(nav: NavController, vm: AppViewModel, key: String) {
 // ───────────────────────── المفضلة ─────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FavoritesScreen(nav: NavController, vm: AppViewModel) {
+fun FavoritesScreen(nav: NavController, vm: AppViewModel, unread: Int) {
     val places by vm.places.collectAsStateWithLifecycle()
     val feed by vm.feed.collectAsStateWithLifecycle()
     val favs by Prefs.favs.collectAsStateWithLifecycle()
@@ -211,7 +217,7 @@ fun FavoritesScreen(nav: NavController, vm: AppViewModel) {
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("المفضلة", fontWeight = FontWeight.Bold) }) },
-        bottomBar = { MainBar(nav, "favs") }
+        bottomBar = { MainBar(nav, "favs", unread) }
     ) { pad ->
         Box(Modifier.padding(pad)) {
             LoadGate(feed, vm::loadFeed) {
