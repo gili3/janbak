@@ -4,7 +4,8 @@ on:
   pull_request:
 jobs:
   rules:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,7 +15,8 @@ jobs:
       - run: cd rules-tests && npm install
       - run: npx -y firebase-tools emulators:exec --only firestore --project jenbak-rules-test "npm --prefix rules-tests run test:rules"
   admin:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,7 +28,8 @@ jobs:
           VITE_FIREBASE_PROJECT_ID: x
           VITE_FIREBASE_APP_ID: x
   android-unit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
