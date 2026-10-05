@@ -17,7 +17,7 @@ import app.jenbak.AppViewModel
 import app.jenbak.data.*
 import kotlinx.coroutines.launch
 
-/** mode: new = نشاط جديد، edit = تعديل نشاط (id = placeId)، retry = إعادة إرسال طلب مرفوض (id = requestId) */
+/** mode: new = نشاط جديد، edit = تعديل نشاط (id = placeId) */
 @Composable
 fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String) {
     val ctx = LocalContext.current
@@ -30,25 +30,16 @@ fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String)
     if (me == null || me.isGuest) {
         SubScaffold(title, { nav.popBackStack() }) { pad ->
             Box(Modifier.padding(pad)) {
-                EmptyState("🔐", "سجّل الدخول بحساب جوجل", "الضيف يتصفح فقط، ونحتاج حسابك لنرسل لك نتيجة المراجعة", "تسجيل الدخول") { nav.navigate("login") }
+                EmptyState("🔐", "سجّل الدخول بحساب جوجل", "الضيف يتصفح فقط، ونحتاج حسابك لإضافة نشاطك", "تسجيل الدخول") { nav.navigate("login") }
             }
         }
         return
     }
 
     val place = if (mode == "edit") vm.placeById(id) else null
-    val request = if (mode == "retry") vm.requestById(id) else null
-    val kind = when (mode) {
-        "edit" -> "edit"
-        "retry" -> request?.kind ?: "new"
-        else -> "new"
-    }
-    val placeId = when (mode) {
-        "edit" -> id
-        "retry" -> request?.placeId?.takeIf { it.isNotEmpty() }
-        else -> null
-    }
-    val initial = place?.toDraft() ?: request?.draft ?: Draft()
+    val kind = if (mode == "edit") "edit" else "new"
+    val placeId = if (mode == "edit") id else null
+    val initial = place?.toDraft() ?: Draft()
 
     var name by rememberSaveable(mode, id) { mutableStateOf(initial.name) }
     var section by rememberSaveable(mode, id) { mutableStateOf(initial.section) }
@@ -78,7 +69,7 @@ fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String)
             TextBox(hours, "ساعات العمل", 100, { hours = it })
             PhoneField(phone, "رقم الهاتف *", { phone = it })
             PhoneField(wa, "واتساب (اختياري)", { wa = it })
-            Text("يُراجع طلبك من الإدارة قبل ظهوره، وسيصلك إشعار بالنتيجة.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("يُراجع نشاطك من الإدارة قبل ظهوره.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Button(
                 enabled = valid && !sending, modifier = Modifier.fillMaxWidth(),
                 onClick = {
@@ -88,7 +79,7 @@ fun EditorScreen(nav: NavController, vm: AppViewModel, mode: String, id: String)
                         val r = runCatching { Repo.submit(kind, placeId, draft) }
                         sending = false
                         if (r.isSuccess) {
-                            ctx.toast("تم إرسال الطلب، سيصلك إشعار بالنتيجة")
+                            ctx.toast("تم الإرسال وسيُراجع من الإدارة")
                             nav.popBackStack()
                         } else {
                             ctx.toast(r.exceptionOrNull()?.userMessage() ?: "تعذر الإرسال")

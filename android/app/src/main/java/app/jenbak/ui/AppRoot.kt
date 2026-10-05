@@ -18,15 +18,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -51,7 +48,7 @@ private val TABS = listOf(
 )
 
 @Composable
-fun MainBar(nav: NavController, current: String, accountBadge: Int) {
+fun MainBar(nav: NavController, current: String) {
     NavigationBar {
         TABS.forEach { t ->
             NavigationBarItem(
@@ -65,11 +62,7 @@ fun MainBar(nav: NavController, current: String, accountBadge: Int) {
                         }
                     }
                 },
-                icon = {
-                    BadgedBox(badge = { if (t.route == "account" && accountBadge > 0) Badge { Text("$accountBadge") } }) {
-                        Icon(t.icon, contentDescription = t.label)
-                    }
-                },
+                icon = { Icon(t.icon, contentDescription = t.label) },
                 label = { Text(t.label) }
             )
         }
@@ -77,7 +70,7 @@ fun MainBar(nav: NavController, current: String, accountBadge: Int) {
 }
 
 @Composable
-fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
+fun AppRoot(vm: AppViewModel = viewModel()) {
     val nav = rememberNavController()
     val me by vm.user.collectAsStateWithLifecycle()
     // أول فتح بلا حساب: شاشة الترحيب (جوجل أو ضيف). وإلا الرئيسية مباشرة
@@ -90,21 +83,6 @@ fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
             nav.navigate("home") { popUpTo("welcome") { inclusive = true } }
         }
     }
-    val inbox by vm.inbox.collectAsStateWithLifecycle()
-    val unread = inbox.count { !it.read }
-
-    // فتح الشاشة المناسبة عند النقر على إشعار
-    val link = deepLink.value
-    LaunchedEffect(link) {
-        when {
-            link == null -> Unit
-            link.startsWith("announcement:") -> nav.navigate("news/${link.removePrefix("announcement:")}")
-            link == "announcement" -> nav.navigate("news")
-            link == "request" -> nav.navigate(if (vm.user.value?.isGuest == false) "inbox" else "home")
-        }
-        if (link != null) deepLink.value = null
-    }
-
     val online by vm.online.collectAsStateWithLifecycle()
 
     Column(Modifier.fillMaxSize()) {
@@ -122,9 +100,9 @@ fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
         Box(Modifier.weight(1f).then(if (!online) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier)) {
     NavHost(nav, startDestination = start) {
         composable("welcome") { WelcomeScreen(vm) }
-        composable("home") { HomeScreen(nav, vm, unread) }
-        composable("favs") { FavoritesScreen(nav, vm, unread) }
-        composable("account") { AccountScreen(nav, vm, unread) }
+        composable("home") { HomeScreen(nav, vm) }
+        composable("favs") { FavoritesScreen(nav, vm) }
+        composable("account") { AccountScreen(nav, vm) }
         composable("section/{key}", listOf(navArgument("key") { type = NavType.StringType })) { e ->
             SectionScreen(nav, vm, e.arguments?.getString("key") ?: "")
         }
@@ -136,9 +114,6 @@ fun AppRoot(deepLink: MutableState<String?>, vm: AppViewModel = viewModel()) {
             AnnouncementScreen(nav, vm, e.arguments?.getString("id") ?: "")
         }
         composable("login") { LoginScreen(nav, vm) }
-        composable("mine") { MyRequestsScreen(nav, vm) }
-        composable("myplaces") { MyPlacesScreen(nav, vm) }
-        composable("inbox") { InboxScreen(nav, vm) }
         composable("editor/{mode}/{id}") { e ->
             EditorScreen(nav, vm, e.arguments?.getString("mode") ?: "new", e.arguments?.getString("id") ?: "-")
         }
