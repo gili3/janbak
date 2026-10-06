@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "834139563746",
+    "project_id": "junbak",
+    "storage_bucket": "junbak.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:834139563746:android:49e642f8dddc8c023760bb",
+        "android_client_info": {
+          "package_name": "sd.janbak.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "834139563746-bnqmplekgpn07vqa51858p4i9isb12h1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "sd.janbak.app",
+            "certificate_hash": "dbdc8c2f9abeb903771c855896ed56033fdf55ab"
+          }
+        },
+        {
+          "client_id": "834139563746-khr62of3anpjtjhgvcof5k7p1pr6cq2u.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1C8rW8gaLvT6fQPNQbK3MQnGGyPjtMFM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "834139563746-khr62of3anpjtjhgvcof5k7p1pr6cq2u.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
