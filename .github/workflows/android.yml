@@ -24,6 +24,20 @@ jobs:
         run: |
           echo "$GS" | base64 -d > android/app/google-services.json
           echo "$KS" | base64 -d > "$RUNNER_TEMP/jenbak.jks"
+      - name: Verify signing secrets and keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          for v in KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "::error::Secret $v is missing or empty"; exit 1; fi
+          done
+          if [ ! -s "$RUNNER_TEMP/jenbak.jks" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is missing or empty (keystore file not created)"; exit 1
+          fi
+          keytool -list -keystore "$RUNNER_TEMP/jenbak.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null \
+            || { echo "::error::Keystore cannot be opened: wrong KEYSTORE_PASSWORD, wrong KEY_ALIAS, or invalid base64"; exit 1; }
       - uses: gradle/actions/setup-gradle@v5
         with: { gradle-version: "8.9" }
       - name: Build signed APK
@@ -34,6 +48,13 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: gradle assembleRelease --no-daemon
+      - name: Verify APK is signed
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -n1)
+          echo "APK: $APK"
+          case "$APK" in *unsigned*) echo "::error::APK is UNSIGNED (keystore not applied)"; exit 1;; esac
+          TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n1)
+          "${TOOLS}apksigner" verify --verbose --print-certs "$APK"
       - uses: actions/upload-artifact@v5
         with:
           name: jenbak-apk

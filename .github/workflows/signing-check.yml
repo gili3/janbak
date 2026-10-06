@@ -1,0 +1,45 @@
+name: Signing Check
+# اختبار سريع (أقل من دقيقة) لأسرار التوقيع دون بناء التطبيق. شغّله يدوياً من تبويب Actions.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: 17 }
+      - name: Check secrets exist
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          for v in KS KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "::error::Secret for $v is missing or empty"; exit 1; fi
+            echo "OK: $v is set"
+          done
+      - name: Open keystore and print certificate fingerprints
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/jenbak.jks"
+          [ -s "$RUNNER_TEMP/jenbak.jks" ] || { echo "::error::Keystore file is empty: invalid ANDROID_KEYSTORE_BASE64"; exit 1; }
+          keytool -list -v -keystore "$RUNNER_TEMP/jenbak.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+            | grep -E "Alias name|Valid from|SHA1|SHA256" \
+            || { echo "::error::Cannot open keystore: wrong KEYSTORE_PASSWORD or KEY_ALIAS"; exit 1; }
+      - name: Test key password
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          cp "$RUNNER_TEMP/jenbak.jks" "$RUNNER_TEMP/t.jks"
+          keytool -keypasswd -keystore "$RUNNER_TEMP/t.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+            -keypass "$KEY_PASSWORD" -new "$KEY_PASSWORD" \
+            && echo "OK: KEY_PASSWORD is correct" \
+            || { echo "::error::KEY_PASSWORD is wrong"; exit 1; }

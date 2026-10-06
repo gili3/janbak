@@ -28,7 +28,7 @@ android {
     }
     buildTypes {
         val ci = signingConfigs.getByName("ci")
-        val hasKey = System.getenv("KEYSTORE_PATH") != null
+        val hasKey = System.getenv("KEYSTORE_PATH")?.let { file(it).length() > 0 } == true
         getByName("release") {
             isMinifyEnabled = true
             isShrinkResources = true
