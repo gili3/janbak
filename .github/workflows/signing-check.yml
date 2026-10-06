@@ -38,8 +38,19 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          cp "$RUNNER_TEMP/jenbak.jks" "$RUNNER_TEMP/t.jks"
-          keytool -keypasswd -keystore "$RUNNER_TEMP/t.jks" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
-            -keypass "$KEY_PASSWORD" -new "$KEY_PASSWORD" \
-            && echo "OK: KEY_PASSWORD is correct" \
-            || { echo "::error::KEY_PASSWORD is wrong"; exit 1; }
+          TYPE=$(keytool -list -v -keystore "$RUNNER_TEMP/jenbak.jks" -storepass "$KEYSTORE_PASSWORD" | grep -i "Keystore type" | awk '{print $3}')
+          echo "Keystore type: $TYPE"
+          if [ "$TYPE" = "PKCS12" ]; then
+            # في PKCS12 كلمة مرور المفتاح هي نفسها كلمة مرور الملف
+            if [ "$KEY_PASSWORD" = "$KEYSTORE_PASSWORD" ]; then
+              echo "OK: KEY_PASSWORD matches KEYSTORE_PASSWORD (required for PKCS12)"
+            else
+              echo "::error::PKCS12 keystore: KEY_PASSWORD must equal KEYSTORE_PASSWORD"; exit 1
+            fi
+          else
+            keytool -importkeystore -srckeystore "$RUNNER_TEMP/jenbak.jks" -srcstorepass "$KEYSTORE_PASSWORD" \
+              -srcalias "$KEY_ALIAS" -srckeypass "$KEY_PASSWORD" \
+              -destkeystore "$RUNNER_TEMP/t.p12" -deststoretype PKCS12 -deststorepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1 \
+              && echo "OK: KEY_PASSWORD is correct" \
+              || { echo "::error::KEY_PASSWORD is wrong"; exit 1; }
+          fi
