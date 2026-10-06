@@ -9,7 +9,7 @@ android {
     compileSdk = 34
     defaultConfig {
         // يجب أن يطابق package_name داخل google-services.json
-        applicationId = "com.janbak.com"
+        applicationId = "sd.janbak.app"
         minSdk = 24
         targetSdk = 34
         versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
